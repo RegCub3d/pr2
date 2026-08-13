@@ -17,7 +17,7 @@ if not Library then
 end
 
 local Window = Library:Window({
-    Name = "Deepwoken ESP",
+    Name = "Deepwoken ESP ---- Right Shift to open and close menu",
     Size = Vector2.new(450, 360)
 })
 
