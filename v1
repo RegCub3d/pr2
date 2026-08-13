@@ -1,203 +1,38 @@
---// Deepwoken ESP
+--// Deepwoken ESP + Goop UI
+--// Stable/unpatched Goop version
 --// RightShift = hide/show menu
---// X close button removed completely
+--// Avoid clicking the X button
 
 --------------------------------------------------
--- PATCHED GOOP LOADER
+-- GOOP UI
 --------------------------------------------------
 
-local GOOP_URL =
+local Library = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/Jimenth/goop/refs/heads/main/Interface/Source.lua"
+))()
 
-local Source = game:HttpGet(GOOP_URL)
-
-if not Source then
-    warn("[ESP] Failed to download Goop")
+if not Library then
+    warn("[ESP] Failed to load Goop")
     return
 end
 
---------------------------------------------------
--- PLAIN STRING PATCH HELPER
---------------------------------------------------
+local Window = Library:Window({
+    Name = "Deepwoken ESP",
+    Size = Vector2.new(450, 360)
+})
 
-local function ReplacePlain(Text, Old, New)
-    local StartPos, EndPos =
-        string.find(
-            Text,
-            Old,
-            1,
-            true
-        )
+local Page = Window:Page({
+    Name = "Visuals",
+    Columns = 1
+})
 
-    if not StartPos then
-        return Text, false
-    end
-
-    return
-        string.sub(
-            Text,
-            1,
-            StartPos - 1
-        )
-        .. New
-        .. string.sub(
-            Text,
-            EndPos + 1
-        ),
-        true
-end
+local Section = Page:Section({
+    Name = "ESP",
+    Side = 1
+})
 
 --------------------------------------------------
--- FIX SEVERE GETPRESSEDKEYS
---------------------------------------------------
-
-local SafeKeysPrefix = [[
-local __goop_raw_getpressedkeys = getpressedkeys
-
-local function __goop_safe_getpressedkeys()
-    if type(__goop_raw_getpressedkeys) ~= "function" then
-        return {}
-    end
-
-    local ok, Result =
-        pcall(
-            __goop_raw_getpressedkeys
-        )
-
-    if ok and type(Result) == "table" then
-        return Result
-    end
-
-    return {}
-end
-
-]]
-
-Source =
-    SafeKeysPrefix
-    .. Source:gsub(
-        "getpressedkeys%(%)",
-        "__goop_safe_getpressedkeys()"
-    )
-
---------------------------------------------------
--- REMOVE X CLOSE HANDLER ENTIRELY
---------------------------------------------------
-
-local OldCloseHandler = [[
-        -- X close button, checked before drag so the header click isn't consumed first.
-        local CloseX = X + self.Width - 22
-        if Library.Input.MouseClicked and not Library.Input.Consumed and Library:IsHovering(CloseX, Y + 4, 16, 16) then
-            Library.Input.Consumed = true
-            self.Visible = false
-            return
-        end
-]]
-
-local NewCloseHandler = [[
-        -- Close button removed.
-        -- RightShift is the only menu hide/show control.
-]]
-
-local ClosePatched
-
-Source, ClosePatched =
-    ReplacePlain(
-        Source,
-        OldCloseHandler,
-        NewCloseHandler
-    )
-
-if not ClosePatched then
-    warn(
-        "[ESP] Warning: Goop close handler patch did not match"
-    )
-end
-
---------------------------------------------------
--- REPLACE X DRAWING WITH HINT
---------------------------------------------------
-
-local OldCloseDrawing = [[
-        local CloseHovered = Library:IsHovering(CloseX, Y + 4, 16, 16)
-        DrawRect(CloseX, Y + 4, 16, 16, Theme["Background"])
-        DrawText(CloseX + 4, Y + 5, Library.FontSize, CloseHovered and Theme["Accent"] or Theme["White"], "X")
-]]
-
-local NewCloseDrawing = [[
-        local MenuHint = "Right shift to open/close menu"
-        local MenuHintBounds = GetTextBounds(MenuHint, 11)
-
-        DrawText(
-            X + self.Width - MenuHintBounds.X - 9,
-            Y + 9,
-            11,
-            Theme["Dim"],
-            MenuHint
-        )
-]]
-
-local HintPatched
-
-Source, HintPatched =
-    ReplacePlain(
-        Source,
-        OldCloseDrawing,
-        NewCloseDrawing
-    )
-
-if not HintPatched then
-    warn(
-        "[ESP] Warning: Goop X drawing patch did not match"
-    )
-end
-
---------------------------------------------------
--- LOAD PATCHED GOOP
---------------------------------------------------
-
-local LoadOK, Library =
-    pcall(function()
-        return loadstring(Source)()
-    end)
-
-if not LoadOK or not Library then
-    warn(
-        "[ESP] Patched Goop failed:",
-        Library
-    )
-    return
-end
-
-print("[ESP] Patched Goop loaded")
-
---------------------------------------------------
--- GOOP WINDOW
---------------------------------------------------
-
-local Window =
-    Library:Window({
-        Name = "Deepwoken ESP",
-        Size = Vector2.new(
-            500,
-            360
-        )
-    })
-
-local Page =
-    Window:Page({
-        Name = "Visuals",
-        Columns = 1
-    })
-
-local Section =
-    Page:Section({
-        Name = "ESP Settings",
-        Side = 1
-    })
-
---------------------------------------------------
--- ESP SETTINGS
+-- SETTINGS
 --------------------------------------------------
 
 local Settings = {
@@ -212,11 +47,11 @@ local Settings = {
     CombatTag = true,
 
     HealthBar = true,
-    BoundingBox = true
+    BoundingBox = true,
 }
 
 --------------------------------------------------
--- GUI TOGGLES
+-- TOGGLES
 --------------------------------------------------
 
 Section:Toggle({
@@ -303,8 +138,7 @@ Section:Toggle({
 -- SERVICES
 --------------------------------------------------
 
-local Players =
-    game:GetService("Players")
+local Players = game:GetService("Players")
 
 local LocalPlayer =
     Players.LocalPlayer
@@ -316,20 +150,14 @@ local Camera =
     workspace.CurrentCamera
 
 if not Live then
-    warn("[ESP] workspace.Live not found")
+    warn("[ESP] workspace.Live missing")
     return
 end
 
 if not Camera then
-    warn("[ESP] CurrentCamera not found")
+    warn("[ESP] Camera missing")
     return
 end
-
---------------------------------------------------
--- STORAGE
---------------------------------------------------
-
-local ESP = {}
 
 --------------------------------------------------
 -- VISUAL SETTINGS
@@ -381,14 +209,11 @@ local TEXT_WORLD_OFFSET =
         0
     )
 
---------------------------------------------------
--- DETAIL RANGE
---------------------------------------------------
-
-local MAX_DETAIL_DISTANCE = 300
+local MAX_DETAIL_DISTANCE =
+    300
 
 --------------------------------------------------
--- HP BAR SETTINGS
+-- HEALTH BAR SETTINGS
 --------------------------------------------------
 
 local BAR_WIDTH = 16
@@ -420,7 +245,13 @@ local BOX_WIDTH_SCALE = 0.72
 local BOX_HEIGHT_SCALE = 1.12
 
 --------------------------------------------------
--- TARGET FILTER
+-- ESP STORAGE
+--------------------------------------------------
+
+local ESP = {}
+
+--------------------------------------------------
+-- VALID TARGET
 --------------------------------------------------
 
 local function IsValidTarget(Character)
@@ -430,13 +261,14 @@ local function IsValidTarget(Character)
             return Character.Name
         end)
 
-    if not ok
-        or type(Name) ~= "string"
-    then
+    if not ok then
         return false
     end
 
-    -- Ignore internal models
+    if type(Name) ~= "string" then
+        return false
+    end
+
     if string.sub(
         Name,
         1,
@@ -445,7 +277,6 @@ local function IsValidTarget(Character)
         return false
     end
 
-    -- Ignore ourselves
     if LocalPlayer
         and Name == LocalPlayer.Name
     then
@@ -470,7 +301,7 @@ local function GetCharacterName(Character)
         return nil
     end
 
-    local ok, CharacterName =
+    local ok, Value =
         pcall(function()
 
             return Humanoid:GetAttribute(
@@ -478,23 +309,26 @@ local function GetCharacterName(Character)
             )
         end)
 
-    if not ok
-        or type(CharacterName) ~= "string"
-        or CharacterName == ""
+    if not ok then
+        return nil
+    end
+
+    if type(Value) ~= "string"
+        or Value == ""
     then
         return nil
     end
 
-    return CharacterName
+    return Value
 end
 
 --------------------------------------------------
 -- LEVEL
 --------------------------------------------------
 
-local function GetPlayerLevel(Character)
+local function GetLevel(Character)
 
-    local ok, Level =
+    local ok, Value =
         pcall(function()
 
             return Character:GetAttribute(
@@ -503,21 +337,19 @@ local function GetPlayerLevel(Character)
         end)
 
     if not ok
-        or Level == nil
+        or Value == nil
     then
         return nil
     end
 
-    local NumericLevel =
-        tonumber(Level)
+    local Number =
+        tonumber(Value)
 
-    if not NumericLevel then
+    if not Number then
         return nil
     end
 
-    return math.floor(
-        NumericLevel
-    )
+    return math.floor(Number)
 end
 
 --------------------------------------------------
@@ -555,7 +387,7 @@ local function GetDistance(Character)
         return nil
     end
 
-    local ok, Distance =
+    local ok, Result =
         pcall(function()
 
             local A =
@@ -584,58 +416,14 @@ local function GetDistance(Character)
         return nil
     end
 
-    return Distance
-end
-
---------------------------------------------------
--- COMBAT TAG
---------------------------------------------------
-
-local function GetCombatTags(Character)
-
-    local Humanoid =
-        Character:FindFirstChild(
-            "Humanoid"
-        )
-
-    if not Humanoid then
-        return 0
-    end
-
-    local ok, DangerCounter =
-        pcall(function()
-
-            return Humanoid:GetAttribute(
-                "DangerCounter"
-            )
-        end)
-
-    if not ok
-        or DangerCounter == nil
-    then
-        return 0
-    end
-
-    local Count =
-        tonumber(
-            DangerCounter
-        )
-
-    if not Count then
-        return 0
-    end
-
-    return math.max(
-        0,
-        math.floor(Count)
-    )
+    return Result
 end
 
 --------------------------------------------------
 -- HEALTH
 --------------------------------------------------
 
-local function GetHealthData(Character)
+local function GetHealth(Character)
 
     local Humanoid =
         Character:FindFirstChild(
@@ -680,7 +468,7 @@ local function GetHealthData(Character)
 
     local Percent =
         math.floor(
-            (Ratio * 100)
+            Ratio * 100
             + 0.5
         )
 
@@ -693,35 +481,50 @@ local function GetHealthData(Character)
 end
 
 --------------------------------------------------
--- DRAWING HELPERS
+-- COMBAT TAG
 --------------------------------------------------
 
-local function NewText()
+local function GetCombatTag(Character)
 
-    local Text =
-        Drawing.new("Text")
+    local Humanoid =
+        Character:FindFirstChild(
+            "Humanoid"
+        )
 
-    Text.Text = ""
-    Text.Size = TEXT_SIZE
-    Text.Center = true
-    Text.Outline = true
-    Text.Color = TEXT_COLOR
-    Text.Visible = false
+    if not Humanoid then
+        return 0
+    end
 
-    return Text
+    local ok, Value =
+        pcall(function()
+
+            return Humanoid:GetAttribute(
+                "DangerCounter"
+            )
+        end)
+
+    if not ok
+        or Value == nil
+    then
+        return 0
+    end
+
+    local Number =
+        tonumber(Value)
+
+    if not Number then
+        return 0
+    end
+
+    return math.max(
+        0,
+        math.floor(Number)
+    )
 end
 
-local function NewLine(Color)
-
-    local Line =
-        Drawing.new("Line")
-
-    Line.Color = Color
-    Line.Thickness = 1
-    Line.Visible = false
-
-    return Line
-end
+--------------------------------------------------
+-- SAFE REMOVE
+--------------------------------------------------
 
 local function SafeRemove(Object)
 
@@ -735,14 +538,19 @@ local function SafeRemove(Object)
 end
 
 --------------------------------------------------
--- HIDE HELPERS
+-- HIDE HP BAR
 --------------------------------------------------
 
 local function HideHealthBar(Data)
 
-    Data.Outline.Visible = false
-    Data.Background.Visible = false
-    Data.Fill.Visible = false
+    Data.Outline.Visible =
+        false
+
+    Data.Background.Visible =
+        false
+
+    Data.Fill.Visible =
+        false
 
     for _, Line
         in ipairs(
@@ -752,6 +560,10 @@ local function HideHealthBar(Data)
         Line.Visible = false
     end
 end
+
+--------------------------------------------------
+-- HIDE BOX
+--------------------------------------------------
 
 local function HideBox(Data)
 
@@ -764,18 +576,28 @@ local function HideBox(Data)
     end
 end
 
+--------------------------------------------------
+-- HIDE EVERYTHING
+--------------------------------------------------
+
 local function HideESP(Data)
 
-    Data.NameText.Visible = false
-    Data.InfoText.Visible = false
-    Data.CombatText.Visible = false
+    Data.NameText.Visible =
+        false
+
+    Data.InfoText.Visible =
+        false
+
+    Data.CombatText.Visible =
+        false
 
     HideHealthBar(Data)
+
     HideBox(Data)
 end
 
 --------------------------------------------------
--- CREATE ESP
+-- CREATE PLAYER ESP
 --------------------------------------------------
 
 local function CreateESP(Character)
@@ -806,25 +628,54 @@ local function CreateESP(Character)
         return
     end
 
-    local HealthData =
-        GetHealthData(Character)
+    local Health =
+        GetHealth(Character)
 
-    if not HealthData then
+    if not Health then
         return
     end
 
     --------------------------------------------------
-    -- TEXTS
+    -- NAME / LEVEL
     --------------------------------------------------
 
     local NameText =
-        NewText()
+        Drawing.new("Text")
+
+    NameText.Text = ""
+    NameText.Size = TEXT_SIZE
+    NameText.Center = true
+    NameText.Outline = true
+    NameText.Color = TEXT_COLOR
+    NameText.Visible = false
+
+    --------------------------------------------------
+    -- DISTANCE / HP %
+    --------------------------------------------------
 
     local InfoText =
-        NewText()
+        Drawing.new("Text")
+
+    InfoText.Text = ""
+    InfoText.Size = TEXT_SIZE
+    InfoText.Center = true
+    InfoText.Outline = true
+    InfoText.Color = TEXT_COLOR
+    InfoText.Visible = false
+
+    --------------------------------------------------
+    -- COMBAT TAG
+    --------------------------------------------------
 
     local CombatText =
-        NewText()
+        Drawing.new("Text")
+
+    CombatText.Text = ""
+    CombatText.Size = TEXT_SIZE
+    CombatText.Center = true
+    CombatText.Outline = true
+    CombatText.Color = TEXT_COLOR
+    CombatText.Visible = false
 
     --------------------------------------------------
     -- HP BAR
@@ -858,8 +709,21 @@ local function CreateESP(Character)
     local Dividers = {}
 
     for i = 1, 4 do
+
+        local Line =
+            Drawing.new("Line")
+
+        Line.Color =
+            BLACK
+
+        Line.Thickness =
+            1
+
+        Line.Visible =
+            false
+
         Dividers[i] =
-            NewLine(BLACK)
+            Line
     end
 
     --------------------------------------------------
@@ -869,10 +733,21 @@ local function CreateESP(Character)
     local BoxLines = {}
 
     for i = 1, 4 do
+
+        local Line =
+            Drawing.new("Line")
+
+        Line.Color =
+            BOX_COLOR
+
+        Line.Thickness =
+            1
+
+        Line.Visible =
+            false
+
         BoxLines[i] =
-            NewLine(
-                BOX_COLOR
-            )
+            Line
     end
 
     --------------------------------------------------
@@ -880,21 +755,35 @@ local function CreateESP(Character)
     --------------------------------------------------
 
     ESP[Character] = {
-        NameText = NameText,
-        InfoText = InfoText,
-        CombatText = CombatText,
 
-        Outline = Outline,
-        Background = Background,
-        Fill = Fill,
+        NameText =
+            NameText,
 
-        Dividers = Dividers,
-        BoxLines = BoxLines
+        InfoText =
+            InfoText,
+
+        CombatText =
+            CombatText,
+
+        Outline =
+            Outline,
+
+        Background =
+            Background,
+
+        Fill =
+            Fill,
+
+        Dividers =
+            Dividers,
+
+        BoxLines =
+            BoxLines
     }
 end
 
 --------------------------------------------------
--- UPDATE ESP
+-- UPDATE PLAYER ESP
 --------------------------------------------------
 
 local function UpdateESP(Character)
@@ -916,13 +805,7 @@ local function UpdateESP(Character)
         return
     end
 
-    --------------------------------------------------
-    -- VALIDITY
-    --------------------------------------------------
-
-    if not IsValidTarget(
-        Character
-    ) then
+    if not IsValidTarget(Character) then
         HideESP(Data)
         return
     end
@@ -959,35 +842,25 @@ local function UpdateESP(Character)
     end
 
     --------------------------------------------------
-    -- DATA
+    -- VALUES
     --------------------------------------------------
 
     local CharacterName =
-        GetCharacterName(
-            Character
-        )
+        GetCharacterName(Character)
 
     local Level =
-        GetPlayerLevel(
-            Character
-        )
+        GetLevel(Character)
 
-    local HealthData =
-        GetHealthData(
-            Character
-        )
-
-    local CombatTags =
-        GetCombatTags(
-            Character
-        )
+    local Health =
+        GetHealth(Character)
 
     local Distance =
-        GetDistance(
-            Character
-        )
+        GetDistance(Character)
 
-    if not HealthData
+    local CombatTags =
+        GetCombatTag(Character)
+
+    if not Health
         or not Distance
     then
         HideESP(Data)
@@ -995,15 +868,16 @@ local function UpdateESP(Character)
     end
 
     --------------------------------------------------
-    -- TEXT ANCHOR
+    -- TEXT POSITION
     --------------------------------------------------
 
     local TextOK,
         TextScreen,
-        TextOnScreen =
+        TextVisible =
         pcall(function()
 
             return Camera:WorldToScreenPoint(
+
                 Head.Position
                 + TEXT_WORLD_OFFSET
             )
@@ -1011,13 +885,13 @@ local function UpdateESP(Character)
 
     if TextOK
         and TextScreen
-        and TextOnScreen
+        and TextVisible
     then
 
         local CurrentLine = 0
 
         --------------------------------------------------
-        -- NAME / LEVEL LINE
+        -- NAME + LEVEL
         --------------------------------------------------
 
         local NameParts = {}
@@ -1025,6 +899,7 @@ local function UpdateESP(Character)
         if Settings.Name
             and CharacterName
         then
+
             table.insert(
                 NameParts,
                 CharacterName
@@ -1034,6 +909,7 @@ local function UpdateESP(Character)
         if Settings.Level
             and Level
         then
+
             table.insert(
                 NameParts,
                 "["
@@ -1052,11 +928,13 @@ local function UpdateESP(Character)
 
             Data.NameText.Position =
                 Vector2.new(
+
                     TextScreen.X,
+
                     TextScreen.Y
                     + (
-                        CurrentLine
-                        * TEXT_LINE_HEIGHT
+                        TEXT_LINE_HEIGHT
+                        * CurrentLine
                     )
                 )
 
@@ -1065,26 +943,31 @@ local function UpdateESP(Character)
 
             CurrentLine =
                 CurrentLine + 1
+
         else
+
             Data.NameText.Visible =
                 false
         end
 
         --------------------------------------------------
-        -- DISTANCE / HP % LINE
+        -- DISTANCE + HP %
         --------------------------------------------------
 
         local InfoParts = {}
 
         if Settings.Distance then
 
+            local RoundedDistance =
+                math.floor(
+                    Distance + 0.5
+                )
+
             table.insert(
                 InfoParts,
 
                 tostring(
-                    math.floor(
-                        Distance + 0.5
-                    )
+                    RoundedDistance
                 )
                 .. " Studs"
             )
@@ -1097,7 +980,7 @@ local function UpdateESP(Character)
 
                 "["
                 .. tostring(
-                    HealthData.Percent
+                    Health.Percent
                 )
                 .. "%]"
             )
@@ -1113,11 +996,13 @@ local function UpdateESP(Character)
 
             Data.InfoText.Position =
                 Vector2.new(
+
                     TextScreen.X,
+
                     TextScreen.Y
                     + (
-                        CurrentLine
-                        * TEXT_LINE_HEIGHT
+                        TEXT_LINE_HEIGHT
+                        * CurrentLine
                     )
                 )
 
@@ -1126,7 +1011,9 @@ local function UpdateESP(Character)
 
             CurrentLine =
                 CurrentLine + 1
+
         else
+
             Data.InfoText.Visible =
                 false
         end
@@ -1147,17 +1034,21 @@ local function UpdateESP(Character)
 
             Data.CombatText.Position =
                 Vector2.new(
+
                     TextScreen.X,
+
                     TextScreen.Y
                     + (
-                        CurrentLine
-                        * TEXT_LINE_HEIGHT
+                        TEXT_LINE_HEIGHT
+                        * CurrentLine
                     )
                 )
 
             Data.CombatText.Visible =
                 true
+
         else
+
             Data.CombatText.Visible =
                 false
         end
@@ -1175,12 +1066,12 @@ local function UpdateESP(Character)
     end
 
     --------------------------------------------------
-    -- TORSO SCREEN POSITION
+    -- BODY SCREEN POSITIONS
     --------------------------------------------------
 
     local TorsoOK,
         TorsoScreen,
-        TorsoOnScreen =
+        TorsoVisible =
         pcall(function()
 
             return Camera:WorldToScreenPoint(
@@ -1190,7 +1081,7 @@ local function UpdateESP(Character)
 
     if not TorsoOK
         or not TorsoScreen
-        or not TorsoOnScreen
+        or not TorsoVisible
     then
 
         HideHealthBar(Data)
@@ -1199,15 +1090,12 @@ local function UpdateESP(Character)
         return
     end
 
-    --------------------------------------------------
-    -- BODY TOP
-    --------------------------------------------------
-
     local HeadOK,
         HeadScreen =
         pcall(function()
 
             return Camera:WorldToScreenPoint(
+
                 Head.Position
                 + Vector3.new(
                     0,
@@ -1227,10 +1115,6 @@ local function UpdateESP(Character)
         return
     end
 
-    --------------------------------------------------
-    -- BODY BOTTOM
-    --------------------------------------------------
-
     local BottomPart =
         LeftLeg
         or RightLeg
@@ -1241,6 +1125,7 @@ local function UpdateESP(Character)
         pcall(function()
 
             return Camera:WorldToScreenPoint(
+
                 BottomPart.Position
                 - Vector3.new(
                     0,
@@ -1266,6 +1151,7 @@ local function UpdateESP(Character)
 
     local BodyHeight =
         math.abs(
+
             BottomScreen.Y
             - HeadScreen.Y
         )
@@ -1394,11 +1280,12 @@ local function UpdateESP(Character)
         end
 
     else
+
         HideBox(Data)
     end
 
     --------------------------------------------------
-    -- HEALTH BAR
+    -- HEALTH BAR RANGE
     --------------------------------------------------
 
     if not Settings.HealthBar
@@ -1407,11 +1294,12 @@ local function UpdateESP(Character)
     then
 
         HideHealthBar(Data)
+
         return
     end
 
     --------------------------------------------------
-    -- BAR HEIGHT
+    -- BAR SIZE
     --------------------------------------------------
 
     local BarHeight =
@@ -1420,23 +1308,24 @@ local function UpdateESP(Character)
 
     BarHeight =
         math.max(
+
             MIN_BAR_HEIGHT,
 
             math.min(
+
                 MAX_BAR_HEIGHT,
+
                 BarHeight
             )
         )
 
-    --------------------------------------------------
-    -- BAR WIDTH
-    --------------------------------------------------
-
     local ScaledWidth =
         math.max(
+
             MIN_BAR_WIDTH,
 
             math.min(
+
                 BAR_WIDTH,
 
                 BarHeight
@@ -1444,12 +1333,9 @@ local function UpdateESP(Character)
             )
         )
 
-    --------------------------------------------------
-    -- BAR OFFSET
-    --------------------------------------------------
-
     local ScaledOffset =
         math.min(
+
             BAR_X_OFFSET,
 
             BarHeight
@@ -1469,11 +1355,12 @@ local function UpdateESP(Character)
         - (BarHeight / 2)
 
     --------------------------------------------------
-    -- OUTLINE
+    -- BLACK OUTLINE
     --------------------------------------------------
 
     Data.Outline.Position =
         Vector2.new(
+
             BarX
             - OUTLINE_SIZE,
 
@@ -1483,6 +1370,7 @@ local function UpdateESP(Character)
 
     Data.Outline.Size =
         Vector2.new(
+
             ScaledWidth
             + (
                 OUTLINE_SIZE
@@ -1500,7 +1388,7 @@ local function UpdateESP(Character)
         true
 
     --------------------------------------------------
-    -- BACKGROUND
+    -- EMPTY BACKGROUND
     --------------------------------------------------
 
     Data.Background.Position =
@@ -1511,7 +1399,9 @@ local function UpdateESP(Character)
 
     Data.Background.Size =
         Vector2.new(
+
             ScaledWidth,
+
             BarHeight
         )
 
@@ -1524,6 +1414,7 @@ local function UpdateESP(Character)
 
     local InnerWidth =
         math.max(
+
             1,
 
             ScaledWidth
@@ -1535,6 +1426,7 @@ local function UpdateESP(Character)
 
     local InnerHeight =
         math.max(
+
             1,
 
             BarHeight
@@ -1545,12 +1437,12 @@ local function UpdateESP(Character)
         )
 
     --------------------------------------------------
-    -- FILL
+    -- HP FILL
     --------------------------------------------------
 
     local FillHeight =
         InnerHeight
-        * HealthData.Ratio
+        * Health.Ratio
 
     local FillX =
         BarX
@@ -1570,7 +1462,9 @@ local function UpdateESP(Character)
 
     Data.Fill.Size =
         Vector2.new(
+
             InnerWidth,
+
             FillHeight
         )
 
@@ -1586,7 +1480,7 @@ local function UpdateESP(Character)
 
     for i = 1, 4 do
 
-        local DividerY =
+        local Y =
             BarY
             + (
                 SectionHeight
@@ -1598,15 +1492,19 @@ local function UpdateESP(Character)
 
         Line.From =
             Vector2.new(
+
                 BarX,
-                DividerY
+
+                Y
             )
 
         Line.To =
             Vector2.new(
+
                 BarX
                 + ScaledWidth,
-                DividerY
+
+                Y
             )
 
         Line.Visible =
@@ -1615,10 +1513,10 @@ local function UpdateESP(Character)
 end
 
 --------------------------------------------------
--- CLEANUP
+-- DESTROY PLAYER ESP
 --------------------------------------------------
 
-local function DestroyESPData(Data)
+local function DestroyESP(Data)
 
     if not Data then
         return
@@ -1665,11 +1563,14 @@ local function DestroyESPData(Data)
     end
 end
 
-local function CleanupESP()
+--------------------------------------------------
+-- CLEANUP OLD PLAYERS
+--------------------------------------------------
+
+local function Cleanup()
 
     local ok, Characters =
         pcall(function()
-
             return Live:GetChildren()
         end)
 
@@ -1679,44 +1580,35 @@ local function CleanupESP()
         return
     end
 
-    local CurrentCharacters =
-        {}
+    local Existing = {}
 
     for _, Character
-        in ipairs(
-            Characters
-        )
+        in ipairs(Characters)
     do
-        CurrentCharacters[
-            Character
-        ] = true
+        Existing[Character] =
+            true
     end
 
-    local RemoveList =
-        {}
+    local Remove = {}
 
     for Character
         in pairs(ESP)
     do
 
-        if not CurrentCharacters[
-            Character
-        ] then
+        if not Existing[Character] then
 
             table.insert(
-                RemoveList,
+                Remove,
                 Character
             )
         end
     end
 
     for _, Character
-        in ipairs(
-            RemoveList
-        )
+        in ipairs(Remove)
     do
 
-        DestroyESPData(
+        DestroyESP(
             ESP[Character]
         )
 
@@ -1726,20 +1618,16 @@ local function CleanupESP()
 end
 
 --------------------------------------------------
--- START
+-- MAIN LOOP
 --------------------------------------------------
 
 print(
-    "[ESP] Patched Goop ESP started"
+    "[ESP] Goop ESP started"
 )
 
 print(
     "[ESP] RightShift = hide/show menu"
 )
-
---------------------------------------------------
--- MAIN LOOP
---------------------------------------------------
 
 while true do
 
@@ -1747,7 +1635,6 @@ while true do
 
     local ok, Characters =
         pcall(function()
-
             return Live:GetChildren()
         end)
 
@@ -1756,9 +1643,7 @@ while true do
     then
 
         for _, Character
-            in ipairs(
-                Characters
-            )
+            in ipairs(Characters)
         do
 
             if IsValidTarget(
@@ -1786,7 +1671,5 @@ while true do
         end
     end
 
-    pcall(
-        CleanupESP
-    )
+    pcall(Cleanup)
 end
