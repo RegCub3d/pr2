@@ -1,8 +1,17 @@
---// Name + Level + Distance + HP + CTAG + Larger Box ESP
+--// Deepwoken ESP + Toggle GUI
+--// Features:
+--//   Master ESP
+--//   Name + Level
+--//   Distance + HP %
+--//   Combat Tag
+--//   HP Bar
+--//   Bounding Box
+--// RightShift hides/shows the menu.
 
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
 
+local LocalPlayer = Players.LocalPlayer
 local Live = workspace:FindFirstChild("Live")
 local Camera = workspace.CurrentCamera
 
@@ -16,11 +25,18 @@ if not Camera then
     return
 end
 
-local ESP = {}
-
 --------------------------------------------------
 -- SETTINGS
 --------------------------------------------------
+
+local Settings = {
+    MasterESP = true,
+    NameLevel = true,
+    DistanceHP = true,
+    CombatTag = true,
+    HealthBar = true,
+    BoundingBox = true,
+}
 
 local TEXT_COLOR = Color3.fromRGB(34, 139, 34)
 local BAR_COLOR = Color3.fromRGB(34, 139, 34)
@@ -31,14 +47,10 @@ local EMPTY_COLOR = Color3.fromRGB(35, 35, 35)
 
 local TEXT_SIZE = 12
 local TEXT_LINE_HEIGHT = 13
-
--- Text is now higher above the player's head
 local TEXT_WORLD_OFFSET = Vector3.new(0, 3, 0)
 
--- HP + box range
 local MAX_DETAIL_DISTANCE = 300
 
--- HP bar
 local BAR_WIDTH = 16
 local BAR_X_OFFSET = 76
 local OFFSET_SCALE = 0.7
@@ -47,16 +59,16 @@ local OUTLINE_SIZE = 1
 local INNER_PADDING = 1
 
 local HEIGHT_MULTIPLIER = 0.9
-
 local MIN_BAR_HEIGHT = 8
 local MAX_BAR_HEIGHT = 120
 
 local MIN_BAR_WIDTH = 4
 local WIDTH_SCALE = 0.18
 
--- Larger bounding box
 local BOX_WIDTH_SCALE = 0.72
 local BOX_HEIGHT_SCALE = 1.12
+
+local ESP = {}
 
 --------------------------------------------------
 -- TARGET FILTER
@@ -71,12 +83,10 @@ local function IsValidTarget(Character)
         return false
     end
 
-    -- Ignore internal models
     if string.sub(Name, 1, 1) == "." then
         return false
     end
 
-    -- Ignore ourselves
     if LocalPlayer and Name == LocalPlayer.Name then
         return false
     end
@@ -85,12 +95,11 @@ local function IsValidTarget(Character)
 end
 
 --------------------------------------------------
--- CHARACTER NAME
+-- CHARACTER DATA
 --------------------------------------------------
 
 local function GetCharacterName(Character)
     local Humanoid = Character:FindFirstChild("Humanoid")
-
     if not Humanoid then
         return nil
     end
@@ -99,24 +108,12 @@ local function GetCharacterName(Character)
         return Humanoid:GetAttribute("CharacterName")
     end)
 
-    if not ok then
-        return nil
-    end
-
-    if type(CharacterName) ~= "string" then
-        return nil
-    end
-
-    if CharacterName == "" then
+    if not ok or type(CharacterName) ~= "string" or CharacterName == "" then
         return nil
     end
 
     return CharacterName
 end
-
---------------------------------------------------
--- LEVEL
---------------------------------------------------
 
 local function GetPlayerLevel(Character)
     local ok, Level = pcall(function()
@@ -128,7 +125,6 @@ local function GetPlayerLevel(Character)
     end
 
     local NumericLevel = tonumber(Level)
-
     if not NumericLevel then
         return nil
     end
@@ -136,13 +132,8 @@ local function GetPlayerLevel(Character)
     return math.floor(NumericLevel)
 end
 
---------------------------------------------------
--- NAME + LEVEL
---------------------------------------------------
-
 local function GetDisplayText(Character)
     local CharacterName = GetCharacterName(Character)
-
     if not CharacterName then
         return nil
     end
@@ -150,36 +141,24 @@ local function GetDisplayText(Character)
     local Level = GetPlayerLevel(Character)
 
     if Level then
-        return CharacterName
-            .. " ["
-            .. tostring(Level)
-            .. "]"
+        return CharacterName .. " [" .. tostring(Level) .. "]"
     end
 
     return CharacterName
 end
-
---------------------------------------------------
--- DISTANCE
---------------------------------------------------
 
 local function GetDistance(Character)
     if not LocalPlayer then
         return nil
     end
 
-    local LocalCharacter =
-        Live:FindFirstChild(LocalPlayer.Name)
-
+    local LocalCharacter = Live:FindFirstChild(LocalPlayer.Name)
     if not LocalCharacter then
         return nil
     end
 
-    local LocalRoot =
-        LocalCharacter:FindFirstChild("HumanoidRootPart")
-
-    local TargetRoot =
-        Character:FindFirstChild("HumanoidRootPart")
+    local LocalRoot = LocalCharacter:FindFirstChild("HumanoidRootPart")
+    local TargetRoot = Character:FindFirstChild("HumanoidRootPart")
 
     if not LocalRoot or not TargetRoot then
         return nil
@@ -207,13 +186,8 @@ local function GetDistance(Character)
     return Distance
 end
 
---------------------------------------------------
--- COMBAT TAG
---------------------------------------------------
-
 local function GetCombatTags(Character)
     local Humanoid = Character:FindFirstChild("Humanoid")
-
     if not Humanoid then
         return 0
     end
@@ -227,24 +201,15 @@ local function GetCombatTags(Character)
     end
 
     local Count = tonumber(DangerCounter)
-
     if not Count then
         return 0
     end
 
-    return math.max(
-        0,
-        math.floor(Count)
-    )
+    return math.max(0, math.floor(Count))
 end
-
---------------------------------------------------
--- HEALTH
---------------------------------------------------
 
 local function GetHealthData(Character)
     local Humanoid = Character:FindFirstChild("Humanoid")
-
     if not Humanoid then
         return nil
     end
@@ -261,31 +226,12 @@ local function GetHealthData(Character)
         return nil
     end
 
-    if type(Health) ~= "number" then
+    if type(Health) ~= "number" or type(MaxHealth) ~= "number" or MaxHealth <= 0 then
         return nil
     end
 
-    if type(MaxHealth) ~= "number" then
-        return nil
-    end
-
-    if MaxHealth <= 0 then
-        return nil
-    end
-
-    local Ratio =
-        math.max(
-            0,
-            math.min(
-                1,
-                Health / MaxHealth
-            )
-        )
-
-    local Percent =
-        math.floor(
-            (Ratio * 100) + 0.5
-        )
+    local Ratio = math.max(0, math.min(1, Health / MaxHealth))
+    local Percent = math.floor((Ratio * 100) + 0.5)
 
     return {
         Health = Health,
@@ -293,6 +239,44 @@ local function GetHealthData(Character)
         Ratio = Ratio,
         Percent = Percent
     }
+end
+
+--------------------------------------------------
+-- DRAWING HELPERS
+--------------------------------------------------
+
+local function SafeRemove(Object)
+    if not Object then
+        return
+    end
+
+    pcall(function()
+        Object:Remove()
+    end)
+end
+
+local function HideHealthBar(Data)
+    Data.Outline.Visible = false
+    Data.Background.Visible = false
+    Data.Fill.Visible = false
+
+    for _, Line in ipairs(Data.Dividers) do
+        Line.Visible = false
+    end
+end
+
+local function HideBox(Data)
+    for _, Line in ipairs(Data.BoxLines) do
+        Line.Visible = false
+    end
+end
+
+local function HideESP(Data)
+    Data.NameText.Visible = false
+    Data.InfoText.Visible = false
+    Data.CombatText.Visible = false
+    HideHealthBar(Data)
+    HideBox(Data)
 end
 
 --------------------------------------------------
@@ -322,12 +306,7 @@ local function CreateESP(Character)
         return
     end
 
-    --------------------------------------------------
-    -- NAME + LEVEL
-    --------------------------------------------------
-
     local NameText = Drawing.new("Text")
-
     NameText.Text = DisplayText
     NameText.Size = TEXT_SIZE
     NameText.Center = true
@@ -335,12 +314,7 @@ local function CreateESP(Character)
     NameText.Color = TEXT_COLOR
     NameText.Visible = false
 
-    --------------------------------------------------
-    -- DISTANCE + HP
-    --------------------------------------------------
-
     local InfoText = Drawing.new("Text")
-
     InfoText.Text = ""
     InfoText.Size = TEXT_SIZE
     InfoText.Center = true
@@ -348,12 +322,7 @@ local function CreateESP(Character)
     InfoText.Color = TEXT_COLOR
     InfoText.Visible = false
 
-    --------------------------------------------------
-    -- CTAG
-    --------------------------------------------------
-
     local CombatText = Drawing.new("Text")
-
     CombatText.Text = ""
     CombatText.Size = TEXT_SIZE
     CombatText.Center = true
@@ -361,61 +330,40 @@ local function CreateESP(Character)
     CombatText.Color = TEXT_COLOR
     CombatText.Visible = false
 
-    --------------------------------------------------
-    -- HP BAR
-    --------------------------------------------------
-
     local Outline = Drawing.new("Square")
-
     Outline.Filled = true
     Outline.Color = BLACK
     Outline.Visible = false
 
     local Background = Drawing.new("Square")
-
     Background.Filled = true
     Background.Color = EMPTY_COLOR
     Background.Visible = false
 
     local Fill = Drawing.new("Square")
-
     Fill.Filled = true
     Fill.Color = BAR_COLOR
     Fill.Visible = false
-
-    --------------------------------------------------
-    -- HP DIVIDERS
-    --------------------------------------------------
 
     local Dividers = {}
 
     for i = 1, 4 do
         local Line = Drawing.new("Line")
-
         Line.Color = BLACK
         Line.Thickness = 1
         Line.Visible = false
-
         Dividers[i] = Line
     end
-
-    --------------------------------------------------
-    -- BOX
-    --------------------------------------------------
 
     local BoxLines = {}
 
     for i = 1, 4 do
         local Line = Drawing.new("Line")
-
         Line.Color = BOX_COLOR
         Line.Thickness = 1
         Line.Visible = false
-
         BoxLines[i] = Line
     end
-
-    --------------------------------------------------
 
     ESP[Character] = {
         NameText = NameText,
@@ -434,43 +382,6 @@ local function CreateESP(Character)
 end
 
 --------------------------------------------------
--- HIDE HP BAR
---------------------------------------------------
-
-local function HideHealthBar(Data)
-    Data.Outline.Visible = false
-    Data.Background.Visible = false
-    Data.Fill.Visible = false
-
-    for _, Line in ipairs(Data.Dividers) do
-        Line.Visible = false
-    end
-end
-
---------------------------------------------------
--- HIDE BOX
---------------------------------------------------
-
-local function HideBox(Data)
-    for _, Line in ipairs(Data.BoxLines) do
-        Line.Visible = false
-    end
-end
-
---------------------------------------------------
--- HIDE ALL
---------------------------------------------------
-
-local function HideESP(Data)
-    Data.NameText.Visible = false
-    Data.InfoText.Visible = false
-    Data.CombatText.Visible = false
-
-    HideHealthBar(Data)
-    HideBox(Data)
-end
-
---------------------------------------------------
 -- UPDATE ESP
 --------------------------------------------------
 
@@ -482,6 +393,11 @@ local function UpdateESP(Character)
         return
     end
 
+    if not Settings.MasterESP then
+        HideESP(Data)
+        return
+    end
+
     if not IsValidTarget(Character) then
         HideESP(Data)
         return
@@ -489,12 +405,8 @@ local function UpdateESP(Character)
 
     local Head = Character:FindFirstChild("Head")
     local Torso = Character:FindFirstChild("Torso")
-
-    local LeftLeg =
-        Character:FindFirstChild("Left Leg")
-
-    local RightLeg =
-        Character:FindFirstChild("Right Leg")
+    local LeftLeg = Character:FindFirstChild("Left Leg")
+    local RightLeg = Character:FindFirstChild("Right Leg")
 
     if not Head or not Torso then
         HideESP(Data)
@@ -506,18 +418,10 @@ local function UpdateESP(Character)
     local CombatTags = GetCombatTags(Character)
     local Distance = GetDistance(Character)
 
-    if
-        not DisplayText
-        or not HealthData
-        or not Distance
-    then
+    if not DisplayText or not HealthData or not Distance then
         HideESP(Data)
         return
     end
-
-    --------------------------------------------------
-    -- UPDATE NAME
-    --------------------------------------------------
 
     if Data.DisplayText ~= DisplayText then
         Data.DisplayText = DisplayText
@@ -525,83 +429,61 @@ local function UpdateESP(Character)
     end
 
     --------------------------------------------------
-    -- TEXT ANCHOR
-    -- NOW +3 STUDS ABOVE HEAD
+    -- TEXT
     --------------------------------------------------
 
-    local TextOK,
-        TextScreen,
-        TextOnScreen =
-        pcall(function()
-
+    local TextOK, TextScreen, TextOnScreen = pcall(function()
         return Camera:WorldToScreenPoint(
-            Head.Position
-            + TEXT_WORLD_OFFSET
+            Head.Position + TEXT_WORLD_OFFSET
         )
     end)
 
-    if
-        not TextOK
-        or not TextScreen
-        or not TextOnScreen
-    then
+    if not TextOK or not TextScreen or not TextOnScreen then
         Data.NameText.Visible = false
         Data.InfoText.Visible = false
         Data.CombatText.Visible = false
-
     else
+        local CurrentLine = 0
 
-        --------------------------------------------------
-        -- LINE 1
-        --------------------------------------------------
-
-        Data.NameText.Position =
-            Vector2.new(
+        if Settings.NameLevel then
+            Data.NameText.Position = Vector2.new(
                 TextScreen.X,
-                TextScreen.Y
+                TextScreen.Y + (TEXT_LINE_HEIGHT * CurrentLine)
             )
+            Data.NameText.Visible = true
+            CurrentLine = CurrentLine + 1
+        else
+            Data.NameText.Visible = false
+        end
 
-        Data.NameText.Visible = true
+        if Settings.DistanceHP then
+            local RoundedDistance = math.floor(Distance + 0.5)
 
-        --------------------------------------------------
-        -- LINE 2
-        --------------------------------------------------
+            Data.InfoText.Text =
+                tostring(RoundedDistance)
+                .. " Studs ["
+                .. tostring(HealthData.Percent)
+                .. "%]"
 
-        local RoundedDistance =
-            math.floor(
-                Distance + 0.5
-            )
-
-        Data.InfoText.Text =
-            tostring(RoundedDistance)
-            .. " Studs ["
-            .. tostring(HealthData.Percent)
-            .. "%]"
-
-        Data.InfoText.Position =
-            Vector2.new(
+            Data.InfoText.Position = Vector2.new(
                 TextScreen.X,
-                TextScreen.Y
-                + TEXT_LINE_HEIGHT
+                TextScreen.Y + (TEXT_LINE_HEIGHT * CurrentLine)
             )
 
-        Data.InfoText.Visible = true
+            Data.InfoText.Visible = true
+            CurrentLine = CurrentLine + 1
+        else
+            Data.InfoText.Visible = false
+        end
 
-        --------------------------------------------------
-        -- LINE 3
-        --------------------------------------------------
-
-        if CombatTags > 0 then
+        if Settings.CombatTag and CombatTags > 0 then
             Data.CombatText.Text =
-                "CTAG: "
-                .. tostring(CombatTags)
+                "CTAG: " .. tostring(CombatTags)
 
-            Data.CombatText.Position =
-                Vector2.new(
-                    TextScreen.X,
-                    TextScreen.Y
-                    + (TEXT_LINE_HEIGHT * 2)
-                )
+            Data.CombatText.Position = Vector2.new(
+                TextScreen.X,
+                TextScreen.Y + (TEXT_LINE_HEIGHT * CurrentLine)
+            )
 
             Data.CombatText.Visible = true
         else
@@ -610,39 +492,22 @@ local function UpdateESP(Character)
     end
 
     --------------------------------------------------
-    -- TORSO PROJECTION
+    -- BODY PROJECTION
     --------------------------------------------------
 
-    local TorsoOK,
-        TorsoScreen,
-        TorsoOnScreen =
-        pcall(function()
-
-        return Camera:WorldToScreenPoint(
-            Torso.Position
-        )
+    local TorsoOK, TorsoScreen, TorsoOnScreen = pcall(function()
+        return Camera:WorldToScreenPoint(Torso.Position)
     end)
 
-    if
-        not TorsoOK
-        or not TorsoScreen
-        or not TorsoOnScreen
-    then
+    if not TorsoOK or not TorsoScreen or not TorsoOnScreen then
         HideHealthBar(Data)
         HideBox(Data)
         return
     end
 
-    --------------------------------------------------
-    -- BODY TOP
-    --------------------------------------------------
-
-    local HeadOK, HeadScreen =
-        pcall(function()
-
+    local HeadOK, HeadScreen = pcall(function()
         return Camera:WorldToScreenPoint(
-            Head.Position
-            + Vector3.new(0, 1, 0)
+            Head.Position + Vector3.new(0, 1, 0)
         )
     end)
 
@@ -652,21 +517,11 @@ local function UpdateESP(Character)
         return
     end
 
-    --------------------------------------------------
-    -- BODY BOTTOM
-    --------------------------------------------------
+    local BottomPart = LeftLeg or RightLeg or Torso
 
-    local BottomPart =
-        LeftLeg
-        or RightLeg
-        or Torso
-
-    local BottomOK, BottomScreen =
-        pcall(function()
-
+    local BottomOK, BottomScreen = pcall(function()
         return Camera:WorldToScreenPoint(
-            BottomPart.Position
-            - Vector3.new(0, 1, 0)
+            BottomPart.Position - Vector3.new(0, 1, 0)
         )
     end)
 
@@ -676,206 +531,115 @@ local function UpdateESP(Character)
         return
     end
 
+    local BodyHeight = math.abs(
+        BottomScreen.Y - HeadScreen.Y
+    )
+
     --------------------------------------------------
-    -- BODY HEIGHT
+    -- BOUNDING BOX
     --------------------------------------------------
 
-    local BodyHeight =
-        math.abs(
+    if Settings.BoundingBox and Distance <= MAX_DETAIL_DISTANCE then
+        local OriginalTop = math.min(
+            HeadScreen.Y,
             BottomScreen.Y
-            - HeadScreen.Y
         )
 
-    --------------------------------------------------
-    -- BOX
-    -- ONLY WITHIN 300 STUDS
-    --------------------------------------------------
-
-    if Distance <= MAX_DETAIL_DISTANCE then
-
-        local OriginalTop =
-            math.min(
-                HeadScreen.Y,
-                BottomScreen.Y
-            )
-
-        local OriginalBottom =
-            math.max(
-                HeadScreen.Y,
-                BottomScreen.Y
-            )
+        local OriginalBottom = math.max(
+            HeadScreen.Y,
+            BottomScreen.Y
+        )
 
         local OriginalCenterY =
-            (
-                OriginalTop
-                + OriginalBottom
-            ) / 2
-
-        --------------------------------------------------
-        -- LARGER BOX
-        --------------------------------------------------
+            (OriginalTop + OriginalBottom) / 2
 
         local BoxHeight =
-            BodyHeight
-            * BOX_HEIGHT_SCALE
+            BodyHeight * BOX_HEIGHT_SCALE
 
         local BoxWidth =
-            BodyHeight
-            * BOX_WIDTH_SCALE
+            BodyHeight * BOX_WIDTH_SCALE
 
         local BoxTop =
-            OriginalCenterY
-            - (BoxHeight / 2)
+            OriginalCenterY - (BoxHeight / 2)
 
         local BoxBottom =
-            OriginalCenterY
-            + (BoxHeight / 2)
+            OriginalCenterY + (BoxHeight / 2)
 
         local BoxLeft =
-            TorsoScreen.X
-            - (BoxWidth / 2)
+            TorsoScreen.X - (BoxWidth / 2)
 
         local BoxRight =
-            TorsoScreen.X
-            + (BoxWidth / 2)
-
-        --------------------------------------------------
-        -- TOP
-        --------------------------------------------------
+            TorsoScreen.X + (BoxWidth / 2)
 
         Data.BoxLines[1].From =
-            Vector2.new(
-                BoxLeft,
-                BoxTop
-            )
+            Vector2.new(BoxLeft, BoxTop)
 
         Data.BoxLines[1].To =
-            Vector2.new(
-                BoxRight,
-                BoxTop
-            )
-
-        --------------------------------------------------
-        -- BOTTOM
-        --------------------------------------------------
+            Vector2.new(BoxRight, BoxTop)
 
         Data.BoxLines[2].From =
-            Vector2.new(
-                BoxLeft,
-                BoxBottom
-            )
+            Vector2.new(BoxLeft, BoxBottom)
 
         Data.BoxLines[2].To =
-            Vector2.new(
-                BoxRight,
-                BoxBottom
-            )
-
-        --------------------------------------------------
-        -- LEFT
-        --------------------------------------------------
+            Vector2.new(BoxRight, BoxBottom)
 
         Data.BoxLines[3].From =
-            Vector2.new(
-                BoxLeft,
-                BoxTop
-            )
+            Vector2.new(BoxLeft, BoxTop)
 
         Data.BoxLines[3].To =
-            Vector2.new(
-                BoxLeft,
-                BoxBottom
-            )
-
-        --------------------------------------------------
-        -- RIGHT
-        --------------------------------------------------
+            Vector2.new(BoxLeft, BoxBottom)
 
         Data.BoxLines[4].From =
-            Vector2.new(
-                BoxRight,
-                BoxTop
-            )
+            Vector2.new(BoxRight, BoxTop)
 
         Data.BoxLines[4].To =
-            Vector2.new(
-                BoxRight,
-                BoxBottom
-            )
+            Vector2.new(BoxRight, BoxBottom)
 
         for _, Line in ipairs(Data.BoxLines) do
             Line.Visible = true
         end
-
     else
         HideBox(Data)
     end
 
     --------------------------------------------------
     -- HP BAR
-    -- ONLY WITHIN 300 STUDS
     --------------------------------------------------
 
-    if Distance > MAX_DETAIL_DISTANCE then
+    if not Settings.HealthBar or Distance > MAX_DETAIL_DISTANCE then
         HideHealthBar(Data)
         return
     end
 
-    --------------------------------------------------
-    -- BAR HEIGHT
-    --------------------------------------------------
-
     local BarHeight =
-        BodyHeight
-        * HEIGHT_MULTIPLIER
+        BodyHeight * HEIGHT_MULTIPLIER
 
-    BarHeight =
-        math.max(
-            MIN_BAR_HEIGHT,
-            math.min(
-                MAX_BAR_HEIGHT,
-                BarHeight
-            )
-        )
-
-    --------------------------------------------------
-    -- BAR WIDTH
-    --------------------------------------------------
-
-    local ScaledWidth =
-        math.max(
-            MIN_BAR_WIDTH,
-            math.min(
-                BAR_WIDTH,
-                BarHeight * WIDTH_SCALE
-            )
-        )
-
-    --------------------------------------------------
-    -- BAR OFFSET
-    --------------------------------------------------
-
-    local ScaledOffset =
+    BarHeight = math.max(
+        MIN_BAR_HEIGHT,
         math.min(
-            BAR_X_OFFSET,
-            BarHeight * OFFSET_SCALE
+            MAX_BAR_HEIGHT,
+            BarHeight
         )
+    )
 
-    --------------------------------------------------
-    -- BAR POSITION
-    --------------------------------------------------
+    local ScaledWidth = math.max(
+        MIN_BAR_WIDTH,
+        math.min(
+            BAR_WIDTH,
+            BarHeight * WIDTH_SCALE
+        )
+    )
+
+    local ScaledOffset = math.min(
+        BAR_X_OFFSET,
+        BarHeight * OFFSET_SCALE
+    )
 
     local BarX =
-        TorsoScreen.X
-        - ScaledOffset
+        TorsoScreen.X - ScaledOffset
 
     local BarY =
-        TorsoScreen.Y
-        - (BarHeight / 2)
-
-    --------------------------------------------------
-    -- BLACK OUTLINE
-    --------------------------------------------------
+        TorsoScreen.Y - (BarHeight / 2)
 
     Data.Outline.Position =
         Vector2.new(
@@ -885,24 +649,14 @@ local function UpdateESP(Character)
 
     Data.Outline.Size =
         Vector2.new(
-            ScaledWidth
-            + (OUTLINE_SIZE * 2),
-
-            BarHeight
-            + (OUTLINE_SIZE * 2)
+            ScaledWidth + (OUTLINE_SIZE * 2),
+            BarHeight + (OUTLINE_SIZE * 2)
         )
 
     Data.Outline.Visible = true
 
-    --------------------------------------------------
-    -- HP BACKGROUND
-    --------------------------------------------------
-
     Data.Background.Position =
-        Vector2.new(
-            BarX,
-            BarY
-        )
+        Vector2.new(BarX, BarY)
 
     Data.Background.Size =
         Vector2.new(
@@ -912,31 +666,21 @@ local function UpdateESP(Character)
 
     Data.Background.Visible = true
 
-    --------------------------------------------------
-    -- HP FILL
-    --------------------------------------------------
+    local InnerWidth = math.max(
+        1,
+        ScaledWidth - (INNER_PADDING * 2)
+    )
 
-    local InnerWidth =
-        math.max(
-            1,
-            ScaledWidth
-            - (INNER_PADDING * 2)
-        )
-
-    local InnerHeight =
-        math.max(
-            1,
-            BarHeight
-            - (INNER_PADDING * 2)
-        )
+    local InnerHeight = math.max(
+        1,
+        BarHeight - (INNER_PADDING * 2)
+    )
 
     local FillHeight =
-        InnerHeight
-        * HealthData.Ratio
+        InnerHeight * HealthData.Ratio
 
     local FillX =
-        BarX
-        + INNER_PADDING
+        BarX + INNER_PADDING
 
     local FillY =
         BarY
@@ -945,10 +689,7 @@ local function UpdateESP(Character)
         - FillHeight
 
     Data.Fill.Position =
-        Vector2.new(
-            FillX,
-            FillY
-        )
+        Vector2.new(FillX, FillY)
 
     Data.Fill.Size =
         Vector2.new(
@@ -959,20 +700,14 @@ local function UpdateESP(Character)
     Data.Fill.Visible =
         FillHeight > 0
 
-    --------------------------------------------------
-    -- 20% HP DIVIDERS
-    --------------------------------------------------
-
     local SectionHeight =
         BarHeight / 5
 
     for i = 1, 4 do
         local DividerY =
-            BarY
-            + (SectionHeight * i)
+            BarY + (SectionHeight * i)
 
-        local Line =
-            Data.Dividers[i]
+        local Line = Data.Dividers[i]
 
         Line.From =
             Vector2.new(
@@ -991,15 +726,43 @@ local function UpdateESP(Character)
 end
 
 --------------------------------------------------
--- CLEANUP
+-- CLEANUP ESP
 --------------------------------------------------
+
+local function DestroyESPData(Data)
+    if not Data then
+        return
+    end
+
+    SafeRemove(Data.NameText)
+    SafeRemove(Data.InfoText)
+    SafeRemove(Data.CombatText)
+
+    SafeRemove(Data.Outline)
+    SafeRemove(Data.Background)
+    SafeRemove(Data.Fill)
+
+    for _, Line in ipairs(Data.Dividers) do
+        SafeRemove(Line)
+    end
+
+    for _, Line in ipairs(Data.BoxLines) do
+        SafeRemove(Line)
+    end
+end
 
 local function CleanupESP()
     local CurrentCharacters = {}
 
-    for _, Character in ipairs(
-        Live:GetChildren()
-    ) do
+    local ok, Characters = pcall(function()
+        return Live:GetChildren()
+    end)
+
+    if not ok or not Characters then
+        return
+    end
+
+    for _, Character in ipairs(Characters) do
         CurrentCharacters[Character] = true
     end
 
@@ -1007,61 +770,268 @@ local function CleanupESP()
 
     for Character in pairs(ESP) do
         if not CurrentCharacters[Character] then
-            table.insert(
-                RemoveList,
-                Character
-            )
+            table.insert(RemoveList, Character)
         end
     end
 
     for _, Character in ipairs(RemoveList) do
-        local Data = ESP[Character]
-
-        if Data then
-            pcall(function()
-
-                Data.NameText:Remove()
-                Data.InfoText:Remove()
-                Data.CombatText:Remove()
-
-                Data.Outline:Remove()
-                Data.Background:Remove()
-                Data.Fill:Remove()
-
-                for _, Line in ipairs(
-                    Data.Dividers
-                ) do
-                    Line:Remove()
-                end
-
-                for _, Line in ipairs(
-                    Data.BoxLines
-                ) do
-                    Line:Remove()
-                end
-            end)
-        end
-
+        DestroyESPData(ESP[Character])
         ESP[Character] = nil
     end
 end
 
 --------------------------------------------------
+-- GUI
+--------------------------------------------------
+
+local function SafeDestroy(Object)
+    if not Object then
+        return
+    end
+
+    pcall(function()
+        Object:Destroy()
+    end)
+end
+
+local PlayerGui =
+    LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
+
+if not PlayerGui then
+    warn("[ESP GUI] PlayerGui not found")
+    return
+end
+
+-- Remove old copy of this menu if script is rerun.
+local OldGui =
+    PlayerGui:FindFirstChild("RegESPMenu")
+
+if OldGui then
+    SafeDestroy(OldGui)
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "RegESPMenu"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 230, 0, 255)
+Main.Position = UDim2.new(0, 20, 0.5, -127)
+Main.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+Main.BorderSizePixel = 0
+Main.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 7)
+MainCorner.Parent = Main
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0, 34)
+Title.BackgroundTransparency = 1
+Title.Text = "ESP Settings"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 17
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = Main
+
+local Hint = Instance.new("TextLabel")
+Hint.Name = "Hint"
+Hint.Position = UDim2.new(0, 0, 1, -21)
+Hint.Size = UDim2.new(1, 0, 0, 18)
+Hint.BackgroundTransparency = 1
+Hint.Text = "RightShift - hide/show menu"
+Hint.TextColor3 = Color3.fromRGB(160, 160, 160)
+Hint.TextSize = 11
+Hint.Font = Enum.Font.SourceSans
+Hint.Parent = Main
+
+local ButtonHolder = Instance.new("Frame")
+ButtonHolder.Name = "Buttons"
+ButtonHolder.Position = UDim2.new(0, 10, 0, 37)
+ButtonHolder.Size = UDim2.new(1, -20, 1, -62)
+ButtonHolder.BackgroundTransparency = 1
+ButtonHolder.Parent = Main
+
+local Layout = Instance.new("UIListLayout")
+Layout.Padding = UDim.new(0, 5)
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+Layout.Parent = ButtonHolder
+
+local Buttons = {}
+
+local Labels = {
+    MasterESP = "Master ESP",
+    NameLevel = "Name + Level",
+    DistanceHP = "Distance + HP %",
+    CombatTag = "Combat Tag",
+    HealthBar = "HP Bar",
+    BoundingBox = "Bounding Box",
+}
+
+local Order = {
+    "MasterESP",
+    "NameLevel",
+    "DistanceHP",
+    "CombatTag",
+    "HealthBar",
+    "BoundingBox",
+}
+
+local function UpdateButton(Key)
+    local Button = Buttons[Key]
+    if not Button then
+        return
+    end
+
+    local Enabled = Settings[Key]
+
+    Button.Text =
+        Labels[Key]
+        .. (Enabled and " : ON" or " : OFF")
+
+    Button.BackgroundColor3 =
+        Enabled
+        and Color3.fromRGB(34, 139, 34)
+        or Color3.fromRGB(70, 70, 70)
+end
+
+local function ApplyImmediateVisibility()
+    for _, Data in pairs(ESP) do
+        if not Settings.MasterESP then
+            HideESP(Data)
+        else
+            if not Settings.NameLevel then
+                Data.NameText.Visible = false
+            end
+
+            if not Settings.DistanceHP then
+                Data.InfoText.Visible = false
+            end
+
+            if not Settings.CombatTag then
+                Data.CombatText.Visible = false
+            end
+
+            if not Settings.HealthBar then
+                HideHealthBar(Data)
+            end
+
+            if not Settings.BoundingBox then
+                HideBox(Data)
+            end
+        end
+    end
+end
+
+for Index, Key in ipairs(Order) do
+    local Button = Instance.new("TextButton")
+    Button.Name = Key
+    Button.Size = UDim2.new(1, 0, 0, 27)
+    Button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    Button.BorderSizePixel = 0
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.TextSize = 13
+    Button.Font = Enum.Font.SourceSans
+    Button.LayoutOrder = Index
+    Button.Parent = ButtonHolder
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 5)
+    Corner.Parent = Button
+
+    Buttons[Key] = Button
+    UpdateButton(Key)
+
+    Button.MouseButton1Click:Connect(function()
+        Settings[Key] = not Settings[Key]
+        UpdateButton(Key)
+        ApplyImmediateVisibility()
+
+        print(
+            "[ESP Settings]",
+            Labels[Key],
+            Settings[Key] and "ON" or "OFF"
+        )
+    end)
+end
+
+--------------------------------------------------
+-- DRAGGING
+--------------------------------------------------
+
+local Dragging = false
+local DragStart = nil
+local StartPosition = nil
+
+Title.InputBegan:Connect(function(Input)
+    if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+        Dragging = true
+        DragStart = Input.Position
+        StartPosition = Main.Position
+    end
+end)
+
+Title.InputEnded:Connect(function(Input)
+    if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+        Dragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(Input)
+    if
+        Dragging
+        and Input.UserInputType == Enum.UserInputType.MouseMovement
+        and DragStart
+        and StartPosition
+    then
+        local Delta =
+            Input.Position - DragStart
+
+        Main.Position = UDim2.new(
+            StartPosition.X.Scale,
+            StartPosition.X.Offset + Delta.X,
+            StartPosition.Y.Scale,
+            StartPosition.Y.Offset + Delta.Y
+        )
+    end
+end)
+
+--------------------------------------------------
+-- MENU HOTKEY
+--------------------------------------------------
+
+UserInputService.InputBegan:Connect(function(Input, Processed)
+    if Processed then
+        return
+    end
+
+    if Input.KeyCode == Enum.KeyCode.RightShift then
+        Main.Visible = not Main.Visible
+    end
+end)
+
+--------------------------------------------------
 -- MAIN LOOP
 --------------------------------------------------
 
-print(
-    "[ESP] Name + Level + Distance + HP + CTAG + Larger Box started"
-)
+print("[ESP] Toggle GUI version started")
+print("[ESP] RightShift hides/shows menu")
 
 while true do
     task.wait(0.03)
 
-    for _, Character in ipairs(
-        Live:GetChildren()
-    ) do
-        if IsValidTarget(Character) then
-            UpdateESP(Character)
+    local ok, Characters = pcall(function()
+        return Live:GetChildren()
+    end)
+
+    if ok and Characters then
+        for _, Character in ipairs(Characters) do
+            if IsValidTarget(Character) then
+                UpdateESP(Character)
+            end
         end
     end
 
